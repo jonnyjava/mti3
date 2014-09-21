@@ -1,0 +1,57 @@
+module Sellable
+  extend ActiveSupport::Concern
+
+  def self.included(base)
+    base.has_one :product_properties, :as => :sellable, :autosave => true
+    base.validate :product_properties_must_be_valid
+    base.alias_method_chain :product_properties, :autobuild
+    base.extend ClassMethods
+    base.define_product_properties_accessors
+  end
+
+  def caca
+    'poloooo'
+  end
+
+  def product_properties_with_autobuild
+    product_properties_without_autobuild || build_product_properties
+  end
+
+  def method_missing(meth, *args, &blk)
+    product_properties.send(meth, *args, &blk)
+  rescue NoMethodError
+    super
+  end
+
+  module ClassMethods
+    def define_product_properties_accessors
+      all_attributes = ProductProperties.content_columns.map(&:name)
+      ignored_attributes = ["created_at", "updated_at", "sellable_type"]
+      attributes_to_delegate = all_attributes - ignored_attributes
+      attributes_to_delegate.each do |attrib|
+        class_eval <<-RUBY
+          def #{attrib}
+            product_properties.#{attrib}
+          end
+
+          def #{attrib}=(value)
+            self.product_properties.#{attrib} = value
+          end
+
+          def #{attrib}?
+            self.product_properties.#{attrib}?
+          end
+        RUBY
+      end
+    end
+  end
+
+protected
+  def product_properties_must_be_valid
+    unless product_properties.valid?
+      product_properties.errors.each do |attr, message|
+        errors.add(attr, message)
+      end
+    end
+  end
+end
